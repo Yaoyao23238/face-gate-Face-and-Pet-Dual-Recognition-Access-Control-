@@ -1,0 +1,55 @@
+# ==================== 个人隐私（生物特征数据）====================
+# 人脸照片 — 包含真实人物面部信息
+knowns/
+test/
+
+# 人脸特征向量 — 生物特征数据，可被用于身份识别
+identity_anchor.npy
+identity_anchors.npz
+
+# 门禁日志 — 包含真实姓名和出入时间
+access_log.txt
+g2/access_log.txt
+
+# 人脸识别配置 — 包含真实姓名
+config.json
+
+# ==================== 大数据文件 ====================
+# Oxford-IIIT Pet 数据集（7400+ 张图片，~500MB）
+# 用户通过 pet_recognition/scripts/download_dataset.py 自行下载
+pet_recognition/data/
+
+# 训练好的模型权重（52MB）
+# 用户通过 pet_recognition/scripts/train.py 自行训练
+pet_recognition/models/
+
+# 训练日志
+pet_recognition/logs/
+
+# ==================== IDE 与系统文件 ====================
+.vscode/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+Thumbs.db
+
+# ==================== Python ====================
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 预训练权重（ultralytics 自动下载）
+*.pt
+
+# YOLO 校验结果
+runs/
+
+# 用户实际配置（从 .example.json 复制后修改）
+pet_recognition/config/pet_config.json
+
+# ==================== 临时脚本 ====================
+generate_report.py
+_update_report.py
+_fix_train.py

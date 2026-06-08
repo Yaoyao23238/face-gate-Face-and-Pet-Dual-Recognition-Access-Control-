@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Face Gate — 智能门禁</title>
+<style>
+  :root {
+    --bg: #0a0e17; --panel: rgba(255,255,255,0.04); --border: rgba(255,255,255,0.08);
+    --text: #c8cdd4; --dim: #6b7280; --green: #10b981; --green-glow: rgba(16,185,129,0.25);
+    --red: #ef4444; --blue: #60a5fa; --radius: 14px; --gap: 14px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI','Microsoft YaHei',sans-serif;
+    background: var(--bg); color: var(--text);
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 24px; background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .logo { font-size:1.25em; font-weight:700; }
+  .logo span { color: var(--green); }
+  .info { display:flex; align-items:center; gap:16px; font-size:.85em; color:var(--dim); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green-glow); animation:pulse-dot 2s infinite; }
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .main { display:flex; flex:1; gap:var(--gap); padding:var(--gap); min-height:0; }
+  .cam-panel {
+    flex:1; background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius); overflow:hidden; position:relative;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .cam-panel img { width:100%; height:100%; object-fit:contain; background:#000; }
+  .cam-label { position:absolute; top:10px; left:14px; font-size:.78em; color:var(--dim); background:rgba(0,0,0,.5); padding:4px 10px; border-radius:6px; }
+  .fps { position:absolute; top:10px; right:14px; font-size:.75em; color:var(--green); background:rgba(0,0,0,.5); padding:4px 10px; border-radius:6px; }
+  .side { width:380px; flex-shrink:0; display:flex; flex-direction:column; gap:var(--gap); overflow-y:auto; }
+  .gate-card { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:24px 20px; text-align:center; }
+  .ring {
+    width:120px; height:120px; margin:0 auto 14px; border-radius:50%;
+    border:6px solid #374151; display:flex; align-items:center; justify-content:center;
+    transition:all .3s;
+  }
+  .ring .arr {
+    width:0; height:0; border-left:14px solid transparent; border-right:14px solid transparent;
+    border-bottom:28px solid #6b7280; transition:all .3s;
+  }
+  .ring.open { border-color:var(--green); box-shadow:0 0 40px var(--green-glow); animation:glow .6s ease-out; }
+  .ring.open .arr { border-bottom-color:#fff; transform:scale(1.15); }
+  .ring.deny { border-color:var(--red); box-shadow:0 0 40px rgba(239,68,68,.25); animation:flash .35s ease-out 3; }
+  .ring.deny .arr { border-bottom-color:var(--red); }
+  @keyframes glow { 0%{box-shadow:0 0 0 var(--green-glow)} 50%{box-shadow:0 0 80px var(--green)} 100%{box-shadow:0 0 40px var(--green-glow)} }
+  @keyframes flash { 0%,100%{box-shadow:0 0 20px rgba(239,68,68,.2)} 50%{box-shadow:0 0 60px var(--red)} }
+  .gate-title { font-size:1em; font-weight:600; }
+  .gate-sub { font-size:.82em; color:var(--dim); }
+  .gate-name { font-size:1.2em; font-weight:700; color:var(--green); margin-top:6px; }
+  .gate-name.deny { color:var(--red); }
+  .stats { display:flex; gap:var(--gap); }
+  .stat { flex:1; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px; text-align:center; }
+  .stat .n { font-size:2em; font-weight:700; } .stat .n.p { color:var(--green); } .stat .n.d { color:var(--red); }
+  .stat .l { font-size:.75em; color:var(--dim); margin-top:2px; }
+  .mgr { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+  .mgr h3 { font-size:.88em; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+  .tag-list { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:24px; }
+  .tag {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 10px; border-radius:20px; font-size:.78em;
+    background:rgba(255,255,255,.06); border:1px solid var(--border);
+    user-select:none;
+  }
+  .tag .del { cursor:pointer; color:var(--red); font-weight:700; font-size:1.2em; line-height:1; padding:0 2px; }
+  .tag .del:hover { opacity:.6; }
+  .tag.face { border-color:rgba(96,165,250,.3); background:rgba(96,165,250,.08); }
+  .tag.pet { border-color:rgba(16,185,129,.3); background:rgba(16,185,129,.08); }
+  .add-row { display:flex; gap:6px; }
+  .add-row input, .add-row select {
+    flex:1; padding:6px 10px; border-radius:8px; border:1px solid var(--border);
+    background:rgba(255,255,255,.04); color:var(--text); font-size:.82em; outline:none;
+  }
+  .add-row input:focus, .add-row select:focus { border-color:var(--blue); }
+  .btn { padding:6px 14px; border-radius:8px; border:none; font-size:.82em; cursor:pointer; font-weight:600; transition:all .15s; white-space:nowrap; }
+  .btn-add { background:var(--green); color:#000; }
+  .btn-add:hover { opacity:.85; } .btn-add:active { transform:scale(.96); }
+  .log-card { flex:1; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); display:flex; flex-direction:column; min-height:180px; }
+  .log-hdr { padding:12px 16px; font-size:.85em; font-weight:600; border-bottom:1px solid var(--border); flex-shrink:0; display:flex; justify-content:space-between; }
+  .log-list { flex:1; overflow-y:auto; padding:6px 0; }
+  .log-list::-webkit-scrollbar { width:4px; }
+  .log-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,.08); border-radius:3px; }
+  .log-item { display:flex; align-items:center; padding:6px 16px; font-size:.8em; gap:8px; border-bottom:1px solid rgba(255,255,255,.02); }
+  .log-time { color:var(--dim); font-family:Consolas,monospace; font-size:.78em; min-width:64px; }
+  .log-name { flex:1; font-weight:500; }
+  .log-status { font-weight:600; padding:2px 8px; border-radius:12px; font-size:.78em; color:var(--green); background:rgba(16,185,129,.12); }
+  .bottombar {
+    padding:8px 24px; background:rgba(255,255,255,.02);
+    border-top:1px solid var(--border); font-size:.76em; color:var(--dim);
+    display:flex; gap:20px; align-items:center; flex-shrink:0;
+  }
+  .bottombar .sp { flex:1; }
+  .btn-exit { padding:4px 16px; border-radius:6px; border:1px solid var(--red); background:transparent; color:var(--red); font-size:.82em; cursor:pointer; font-weight:600; }
+  .btn-exit:hover { background:var(--red); color:#fff; } .btn-exit:active { transform:scale(.96); }
+  .toast { position:fixed; top:16px; right:16px; z-index:9999; padding:10px 20px; border-radius:10px; font-size:.85em; font-weight:600; animation:toast-in .3s ease; pointer-events:none; }
+  .toast.ok { background:var(--green); color:#000; } .toast.err { background:var(--red); color:#fff; }
+  @keyframes toast-in { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">🔒 <span>Face Gate</span> 智能门禁</div>
+  <div class="info"><span id="clock">--:--:--</span><div class="dot"></div><span>系统运行中</span></div>
+</div>
+
+<div class="main">
+  <div class="cam-panel">
+    <img id="video" src="/video_feed" alt="Camera" />
+    <div class="cam-label">📹 LIVE</div>
+    <div class="fps" id="fps">-- FPS</div>
+  </div>
+
+  <div class="side">
+    <div class="gate-card">
+      <div class="ring" id="ring"><div class="arr"></div></div>
+      <div class="gate-title" id="gate-title">门已关闭</div>
+      <div class="gate-sub" id="gate-sub">检测中...</div>
+      <div class="gate-name" id="gate-name"></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="n p" id="stat-pass">0</div><div class="l">✅ 通过</div></div>
+      <div class="stat"><div class="n d" id="stat-deny">0</div><div class="l">❌ 拒绝</div></div>
+    </div>
+
+    <div class="mgr">
+      <h3>👤 注册人脸 <span style="color:var(--dim);font-size:.8em;" id="face-count">0人</span></h3>
+      <div class="tag-list" id="face-tags"><span style="color:var(--dim);font-size:.8em;">加载中...</span></div>
+      <div class="add-row">
+        <input id="face-input" placeholder="输入姓名注册人脸（正对摄像头）" />
+        <button class="btn btn-add" id="btn-face-reg">注册</button>
+      </div>
+    </div>
+
+    <div class="mgr">
+      <h3>🐶 宠物白名单 <span style="color:var(--dim);font-size:.8em;" id="pet-count">0种</span></h3>
+      <div class="tag-list" id="pet-tags"><span style="color:var(--dim);font-size:.8em;">加载中...</span></div>
+      <div class="add-row">
+        <select id="breed-select"><option value="">-- 选择品种 --</option></select>
+        <button class="btn btn-add" id="btn-pet-add">添加</button>
+      </div>
+    </div>
+
+    <div class="log-card">
+      <div class="log-hdr">📋 通行记录 <span style="color:var(--dim);font-size:.8em;" id="log-count">0</span></div>
+      <div class="log-list" id="log-list"><div class="log-item" style="color:var(--dim);justify-content:center;">等待通行记录...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="bottombar">
+  <span>👤 注册人数: <b id="b-face">0</b></span>
+  <span>🐶 品种数: <b id="b-pet">0</b></span>
+  <span class="sp"></span>
+  <span id="det-tag" style="color:var(--dim);">IDLE</span>
+  <button class="btn-exit" id="btn-shutdown">⏻ 退出进程</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  DOM
+// ═══════════════════════════════════════════
+var $ = function(s) { return document.querySelector(s); };
+var ring = $('#ring'), gateTitle = $('#gate-title'), gateSub = $('#gate-sub'), gateName = $('#gate-name');
+var statP = $('#stat-pass'), statD = $('#stat-deny');
+var fpsEl = $('#fps'), logList = $('#log-list'), logCount = $('#log-count');
+var faceTags = $('#face-tags'), petTags = $('#pet-tags');
+var faceCount = $('#face-count'), petCount = $('#pet-count');
+var breedSel = $('#breed-select'), faceInput = $('#face-input');
+var detTag = $('#det-tag'), bFace = $('#b-face'), bPet = $('#b-pet');
+
+var lastGate = 'idle', gateTimer = null, logLen = 0;
+
+// ── 时钟 ──
+setInterval(function() { $('#clock').textContent = new Date().toLocaleTimeString('zh-CN',{hour12:false}); }, 1000);
+
+// ── Toast ──
+function toast(msg, ok) {
+  if (ok === undefined) ok = true;
+  var t = document.createElement('div');
+  t.className = 'toast ' + (ok ? 'ok' : 'err');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.remove(); }, 2500);
+}
+
+// ── POST API ──
+function postAPI(path) {
+  return fetch(path, { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.result) { toast(d.result); } else if (d.error) { toast(d.error, false); }
+      return d;
+    })
+    .catch(function(e) { toast('请求失败: ' + e.message, false); });
+}
+
+// ═══════════════════════════════════════════
+//  状态轮询
+// ═══════════════════════════════════════════
+function poll() {
+  fetch('/status')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.gate_state !== lastGate) {
+        updateGate(d.gate_state, d.gate_name);
+        lastGate = d.gate_state;
+        if (d.gate_state !== 'idle') {
+          clearTimeout(gateTimer);
+          gateTimer = setTimeout(function() { updateGate('idle',''); lastGate='idle'; }, d.gate_state==='open'?3000:3500);
+        }
+      }
+      statP.textContent = d.pass_count;
+      statD.textContent = d.deny_count;
+      fpsEl.textContent = d.fps + ' FPS';
+      if (d.detections && d.detections.length > 0) {
+        var dt = d.detections[0];
+        detTag.textContent = dt.type.toUpperCase() + (dt.granted ? ' ✅' : ' ❌');
+        detTag.style.color = dt.granted ? 'var(--green)' : 'var(--red)';
+      } else { detTag.textContent = 'IDLE'; detTag.style.color = 'var(--dim)'; }
+      if (d.registered_faces) {
+        faceCount.textContent = d.registered_faces.length + '人';
+        faceTags.innerHTML = d.registered_faces.map(function(n) {
+          return '<span class="tag face">' + n + '<span class="del" data-name="' + n + '" title="移除">×</span></span>';
+        }).join('');
+        bFace.textContent = d.registered_faces.length;
+      }
+      if (d.pet_allowlist) {
+        petCount.textContent = d.pet_allowlist.length + '种';
+        petTags.innerHTML = d.pet_allowlist.map(function(b) {
+          return '<span class="tag pet">' + b + '<span class="del" data-breed="' + b + '" title="移除">×</span></span>';
+        }).join('');
+        bPet.textContent = d.pet_allowlist.length;
+      }
+      if (d.log && d.log.length > logLen) {
+        d.log.slice(logLen).forEach(addLog);
+        logLen = d.log.length;
+        logCount.textContent = d.log.length;
+      }
+    });
+}
+setInterval(poll, 200);
+
+// ── 品种下拉首次加载（/breeds 只需一次）──
+fetch('/breeds')
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.breeds) {
+      breedSel.innerHTML = '<option value="">-- 选择品种（英文名）--</option>' +
+        d.breeds.map(function(b) { return '<option value="' + b.zh + '">' + b.zh + ' (' + b.en + ')</option>'; }).join('');
+    }
+  });
+
+// ═══════════════════════════════════════════
+//  按钮事件
+// ═══════════════════════════════════════════
+$('#btn-face-reg').addEventListener('click', function() {
+  var name = faceInput.value.trim();
+  if (!name) { toast('请输入姓名', false); return; }
+  toast('正在注册，请面向摄像头...');
+  postAPI('/face/register?name=' + encodeURIComponent(name)).then(function(d) {
+    if (d && d.result) faceInput.value = '';
+  });
+});
+
+$('#btn-pet-add').addEventListener('click', function() {
+  var b = breedSel.value;
+  if (!b) { toast('请选择品种', false); return; }
+  postAPI('/pet/add?breed=' + encodeURIComponent(b));
+});
+
+$('#btn-shutdown').addEventListener('click', function() {
+  if (!confirm('确定要关闭门禁系统吗？')) return;
+  postAPI('/shutdown').then(function() {
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#6b7280;font-size:1.5em;">🛑 系统已关闭，请关闭此页面。</div>';
+  });
+});
+
+// 删除按钮 — 事件委托
+faceTags.addEventListener('click', function(e) {
+  if (e.target.classList.contains('del')) {
+    var name = e.target.getAttribute('data-name');
+    if (name) postAPI('/face/remove?name=' + encodeURIComponent(name));
+  }
+});
+petTags.addEventListener('click', function(e) {
+  if (e.target.classList.contains('del')) {
+    var breed = e.target.getAttribute('data-breed');
+    if (breed) postAPI('/pet/remove?breed=' + encodeURIComponent(breed));
+  }
+});
+
+// ═══════════════════════════════════════════
+//  门禁动画
+// ═══════════════════════════════════════════
+function updateGate(state, name) {
+  ring.className = 'ring'; gateName.className = 'gate-name'; gateName.textContent = '';
+  if (state === 'open') {
+    ring.classList.add('open');
+    gateTitle.textContent = '🚪 识别通过，请进！';
+    gateSub.textContent = name || '';
+    gateName.textContent = name || '';
+  } else if (state === 'deny') {
+    ring.classList.add('deny');
+    gateTitle.textContent = '⛔ 拒绝访问';
+    gateSub.textContent = name || '';
+    gateName.textContent = name || '';
+    gateName.classList.add('deny');
+  } else {
+    gateTitle.textContent = '门已关闭';
+    gateSub.textContent = '检测中...';
+  }
+}
+
+// ── 日志 ──
+function addLog(e) {
+  var pl = logList.querySelectorAll('.log-item')[0];
+  if (pl && pl.style.color === 'var(--dim)') logList.innerHTML = '';
+  var div = document.createElement('div');
+  div.className = 'log-item';
+  div.innerHTML = '<span class="log-time">' + e.time + '</span><span class="log-name">' + e.name + '</span><span class="log-status">✅ 通过</span>';
+  logList.appendChild(div);
+  logList.scrollTop = logList.scrollHeight;
+}
+</script>
+</body>
+</html>

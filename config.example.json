@@ -1,0 +1,11 @@
+{
+  "identities": ["alice", "bob", "charlie"],
+  "threshold": 0.68,
+  "similarity_stats": {
+    "min": 0.47,
+    "max": 1.00,
+    "mean": 0.80,
+    "std": 0.09,
+    "recommended_threshold": 0.62
+  }
+}
